@@ -12,3 +12,13 @@ compile_flags.txt
 tags
 build_*
 *.bak
+
+# SLAMBot local workspace artifacts
+/log/
+/docs/logs/
+/docs/agent_notes/
+
+# Python tool caches
+__pycache__/
+*.py[cod]
+/docs/study/

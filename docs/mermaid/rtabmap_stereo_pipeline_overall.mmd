@@ -1,0 +1,53 @@
+flowchart TD
+    subgraph ROSInputs["ROS inputs"]
+        L["left/image_rect"]
+        R["right/image_rect"]
+        LI["left/camera_info"]
+        RI["right/camera_info"]
+        IMU["imu optional"]
+    end
+
+    subgraph OdomNode["rtabmap_odom/stereo_odometry"]
+        SO["StereoOdometry"]
+        SYNC["message_filters sync<br/>ApproximateTime or ExactTime"]
+        SCB["StereoOdometry::callback"]
+        SCOM["commonCallback<br/>check encoding / camera model / TF / baseline"]
+        SD["SensorData<br/>left/right images + StereoCameraModel"]
+        OR["OdometryROS::processData"]
+        OTHREAD["OdometryROS::mainLoop"]
+        OP["Odometry::process"]
+        F2M["OdometryF2M"]
+        RV["RegistrationVis"]
+        OSTATE["odometry state<br/>pose, velocityGuess, covariance"]
+    end
+
+    subgraph SlamNode["rtabmap_slam/rtabmap"]
+        CW["CoreWrapper"]
+        ASYNC["processAsync"]
+        RP["Rtabmap::process"]
+        MEM["Memory"]
+        LOOP["Loop closure"]
+        OPT["GraphOptimizer"]
+        MAP["mapToOdom / optimized graph / map"]
+    end
+
+    L --> SYNC
+    R --> SYNC
+    LI --> SYNC
+    RI --> SYNC
+    SYNC --> SCB --> SCOM --> SD --> OR --> OTHREAD --> OP --> F2M --> RV --> OSTATE
+
+    OSTATE --> ODOM["publish odom"]
+    OSTATE --> OINFO["publish odom_info"]
+    OSTATE --> TF["publish TF odom to base_link"]
+
+    ODOM --> CW
+    OINFO --> CW
+    L --> CW
+    R --> CW
+    LI --> CW
+    RI --> CW
+    IMU --> OTHREAD
+    IMU --> CW
+
+    CW --> ASYNC --> RP --> MEM --> LOOP --> OPT --> MAP

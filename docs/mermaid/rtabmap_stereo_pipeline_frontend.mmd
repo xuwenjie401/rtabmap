@@ -1,0 +1,44 @@
+flowchart TD
+    A["StereoOdometry::commonCallback"] --> B["Check left/right image size and encoding"]
+    B --> C["Get camera to base_link TF<br/>build StereoCameraModel"]
+    C --> D{"ImagesAlreadyRectified?"}
+    D -->|"false"| E["Initialize rectification maps<br/>rectify left/right"]
+    D -->|"true"| F["Use camera_info P/Tx<br/>compute stereo baseline"]
+    E --> G["Convert to mono8<br/>or keep bgr8 if keep_color"]
+    F --> G
+    G --> H["For multi-camera,<br/>stitch left/right images horizontally"]
+    H --> I["Build SensorData(left, right, stereoModels)"]
+
+    I --> J["OdometryROS::mainLoop"]
+    J --> K["IMU cache/interpolation<br/>optional initial orientation and rotation guess"]
+    J --> L["Timestamp checks / rate limit / guess_from_tf"]
+    L --> M["Odometry::process(data, guess)"]
+
+    M --> N["Optional rectification / image decimation"]
+    N --> O["Build motion guess<br/>velocityGuess / Kalman / IMU"]
+    O --> P["OdometryF2M::computeTransform"]
+
+    P --> Q["Current SensorData to Signature lastFrame"]
+    Q --> R{"Does local map have features?"}
+    R -->|"No, first frame"| S["Extract current-frame features<br/>initialize local map"]
+    R -->|"Yes"| T["RegistrationVis::computeTransformationMod"]
+
+    T --> U["Feature detection<br/>GFTT / ORB / SIFT / etc by parameters"]
+    U --> V["Depth mask / floor mask / min-max depth filtering"]
+    V --> W["Descriptor extraction"]
+    W --> X["3D keypoint generation<br/>stereo disparity or depth projection"]
+    X --> Y["Feature matching<br/>VWDictionary / kNN / BF / GMS / SuperGlue optional"]
+    Y --> Z["Motion estimation<br/>F2M supports 2D to 3D PnP or 3D to 3D"]
+    Z --> AA["RANSAC / inlier check / covariance"]
+    AA --> AB{"Optional local BA?"}
+    AB -->|"enabled"| AC["Local bundle adjustment<br/>optimize window poses + 3D points"]
+    AB -->|"disabled"| AD["Use registration transform"]
+    AC --> AE["Get incremental transform t"]
+    AD --> AE
+
+    AE --> AF["Odometry::process post-processing"]
+    AF --> AG["3DoF / non-holonomic / particle filter / Kalman filter"]
+    AG --> AH["Update velocityGuess"]
+    AH --> AI["_pose = _pose * t"]
+    AI --> AJ["Publish odom / TF / odom_info"]
+    AI --> AK["OdometryF2M updates local map<br/>add new features / remove old points / maintain descriptors"]

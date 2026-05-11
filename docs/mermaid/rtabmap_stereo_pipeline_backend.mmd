@@ -1,0 +1,52 @@
+flowchart TD
+    A["CoreWrapper callback"] --> B["Synchronize sensor data + odom + odom_info"]
+    B --> C["odomUpdate / odomTFUpdate<br/>get base_link pose in odom frame"]
+    C --> D["processAsync"]
+    D --> E["CoreWrapper::process"]
+
+    E --> F["Attach async data<br/>global pose / GPS / landmarks / IMU"]
+    F --> G["Fix covariance / velocity / external stats"]
+    G --> H["Rtabmap::process(data, odomPose, covariance)"]
+
+    H --> I["Validate odomPose<br/>RGBD SLAM mode requires odometry"]
+    I --> J["Memory::update"]
+    J --> K["Memory::createSignature"]
+
+    K --> L["Uncompress images / scan if needed"]
+    L --> M["Rectify stereo/RGBD if needed"]
+    M --> N["Optional image decimation"]
+    N --> O{"Mem/UseOdomFeatures<br/>and odom_info has valid features?"}
+    O -->|"yes"| P["Reuse odometry frontend features"]
+    O -->|"no"| Q["Extract keypoints/descriptors again"]
+    Q --> R["Depth mask / floor mask / undistort keypoints"]
+    P --> S["Create Signature"]
+    R --> S
+
+    S --> T["Update VWDictionary<br/>visual words / inverted index"]
+    T --> U["STM / WM / LTM memory management"]
+    U --> V["Rehearsal<br/>merge very similar neighbor nodes"]
+    U --> W["Create neighbor link<br/>odometry constraint"]
+
+    W --> X["Rtabmap::process metric stage"]
+    X --> Y["Small displacement / too-fast movement filtering"]
+    Y --> Z["Optional refine neighbor link<br/>Memory::computeTransform"]
+    Z --> AA["Add optimizedPoses and constraints"]
+
+    AA --> AB["Local loop closure by time/space"]
+    AB --> AC["computeLikelihood<br/>current Signature vs Working Memory"]
+    AC --> AD["BayesFilter::computePosterior"]
+    AD --> AE["Select highest loop hypothesis"]
+    AE --> AF["Threshold / epipolar / ratio validation"]
+
+    AF --> AG{"Accepted?"}
+    AG -->|"no"| AH["Reject loop closure"]
+    AG -->|"yes"| AI["Memory::computeTransform<br/>compute constraint to historical node"]
+    AI --> AJ["addLink GlobalClosure/LocalClosure"]
+
+    AJ --> AK["optimizeCurrentMap"]
+    AK --> AL["Memory::getMetricConstraints"]
+    AL --> AM["GraphOptimizer::optimize<br/>g2o / GTSAM / Ceres depending build/config"]
+    AM --> AN["Check max graph optimization error<br/>rollback bad closures if needed"]
+    AN --> AO["Update optimizedPoses"]
+    AO --> AP["mapCorrection = optimizedPose * rawOdomPose inverse"]
+    AP --> AQ["CoreWrapper publishes map to odom TF / map graph / grids / clouds"]
